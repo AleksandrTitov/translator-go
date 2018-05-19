@@ -44,7 +44,7 @@ type translateYandex struct {
 
 const tokenYA = "TOKEN_YA"
 
-func respHTTP(url, methodReq string, metadataHTTP map[string]string, dataHTTP []byte) []byte {
+func respHTTP(url, methodReq string, metadataHTTP map[string]string, dataHTTP []byte)([]byte, int64, string, int) {
 
 	client := &http.Client{}
 	httpReq, _ := http.NewRequest(methodReq, url, bytes.NewBuffer(dataHTTP))
@@ -62,12 +62,13 @@ func respHTTP(url, methodReq string, metadataHTTP map[string]string, dataHTTP []
 	}
 	defer httpResp.Body.Close()
 
-	return body
+	return body, httpResp.ContentLength, httpResp.Header.Get("Date"), httpResp.StatusCode
 }
 
 func translate(worlds []string) map[string]string {
 
 	var Translate translateYandex
+	var translation string
 
 	in := make(chan string, 1)
 	out := make(chan string, 1)
@@ -82,12 +83,23 @@ func translate(worlds []string) map[string]string {
 				os.Getenv(tokenYA),
 				world)
 
-			body := respHTTP(url, "GET", nil, nil)
+			body, contentLen, date, respCode := respHTTP(url, "GET", nil, nil)
 			err := json.Unmarshal(body, &Translate)
 			if err != nil {
 				fmt.Println(err)
 			}
-			out <- Translate.Def[0].Tr[0].Text
+			if respCode == 200 {
+				if contentLen != 20 {
+					translation = Translate.Def[0].Tr[0].Text
+				} else {
+					translation = "none"
+				}
+			} else {
+				translation = "none"
+			}
+			out <- translation
+
+			fmt.Println(date,", status: [",respCode ,"], world: [",world, "], translate: [", translation, "]")
 		}
 		close(out)
 	}(in, out)
@@ -101,12 +113,6 @@ func translate(worlds []string) map[string]string {
 	close(in)
 
 	return dictionary
-}
-
-func main() {
-	http.HandleFunc("/", parsePost)
-	http.ListenAndServe(":8080", nil)
-
 }
 
 func parsePost(rw http.ResponseWriter, request *http.Request) {
@@ -129,4 +135,9 @@ func parsePost(rw http.ResponseWriter, request *http.Request) {
 	rw.Header().Set("Server", "A Go Web Server")
 	rw.Header().Set("Content-Type", "application/json")
 	rw.Write(worldsJS)
+}
+
+func main() {
+	http.HandleFunc("/", parsePost)
+	http.ListenAndServe(":8080", nil)
 }
