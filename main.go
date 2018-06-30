@@ -9,8 +9,8 @@ import (
 	"os"
 )
 
-type worldToTr struct {
-	Worlds []string
+type wordToTr struct {
+	Words []string
 }
 
 type translateYandex struct {
@@ -65,7 +65,7 @@ func respHTTP(url, methodReq string, metadataHTTP map[string]string, dataHTTP []
 	return body, httpResp.ContentLength, httpResp.Header.Get("Date"), httpResp.StatusCode
 }
 
-func translate(worlds []string) map[string]string {
+func translate(words []string) map[string]string {
 
 	var Translate translateYandex
 	var translation string
@@ -76,12 +76,12 @@ func translate(worlds []string) map[string]string {
 	dictionary := make(map[string]string)
 
 	go func(in, out chan string) {
-		for world := range in {
+		for word := range in {
 
 			url := fmt.Sprintf(
 				"https://dictionary.yandex.net/api/v1/dicservice.json/lookup?key=%s&lang=en-ru&text=%s&flags=4",
 				os.Getenv(tokenYA),
-				world)
+				word)
 
 			body, contentLen, date, respCode := respHTTP(url, "GET", nil, nil)
 			err := json.Unmarshal(body, &Translate)
@@ -99,16 +99,16 @@ func translate(worlds []string) map[string]string {
 			}
 			out <- translation
 
-			fmt.Println(date,", status: [",respCode ,"], world: [",world, "], translate: [", translation, "]")
+			fmt.Println(date,", status: [",respCode ,"], word: [",word, "], translate: [", translation, "]")
 		}
 		close(out)
 	}(in, out)
 
-	for _, world := range worlds {
-		in <- world
+	for _, word := range words {
+		in <- word
 		transl := <-out
 
-		dictionary[world] = transl
+		dictionary[word] = transl
 	}
 	close(in)
 
@@ -118,14 +118,14 @@ func translate(worlds []string) map[string]string {
 func parsePost(rw http.ResponseWriter, request *http.Request) {
 	decoder := json.NewDecoder(request.Body)
 
-	var worlds worldToTr
-	err := decoder.Decode(&worlds)
+	var words wordToTr
+	err := decoder.Decode(&words)
 
 	if err != nil {
 		panic(err)
 	}
 
-	worldsJS, err := json.Marshal(translate(worlds.Worlds))
+	wordsJS, err := json.Marshal(translate(words.Words))
 
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -134,7 +134,7 @@ func parsePost(rw http.ResponseWriter, request *http.Request) {
 
 	rw.Header().Set("Server", "A Go Web Server")
 	rw.Header().Set("Content-Type", "application/json")
-	rw.Write(worldsJS)
+	rw.Write(wordsJS)
 }
 
 func main() {

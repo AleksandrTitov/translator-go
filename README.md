@@ -1,6 +1,6 @@
 # go-translator
 
-# About
+## About
 
 It's a simple "translator" service wrote by using go-lang. 
 Possible only EN-RU direction of translation.
